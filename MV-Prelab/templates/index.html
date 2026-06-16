@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Machine Vision Pre-Lab | Ayush Badwaik CM23051</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+/* ── Design tokens ──────────────────────────────────── */
+:root{
+  --bg:        #F7F8FA;
+  --surface:   #FFFFFF;
+  --border:    #E4E7EE;
+  --accent:    #4F7CFF;
+  --accent-lt: #EEF2FF;
+  --accent2:   #22C55E;
+  --accent3:   #F59E0B;
+  --text-1:    #0F172A;
+  --text-2:    #475569;
+  --text-3:    #94A3B8;
+  --red:       #EF4444;
+  --radius:    14px;
+  --shadow:    0 2px 12px rgba(0,0,0,.07);
+  --shadow-lg: 0 8px 32px rgba(79,124,255,.13);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text-1);font-family:'Inter',sans-serif;min-height:100vh}
+
+/* ── Header ─────────────────────────────────────────── */
+header{
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 2rem;
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  height:64px;
+  box-shadow:var(--shadow);
+}
+.logo{display:flex;align-items:center;gap:.75rem}
+.logo-icon{
+  width:38px;height:38px;background:var(--accent);border-radius:10px;
+  display:grid;place-items:center;
+}
+.logo-icon svg{color:#fff}
+.logo-text h1{font-size:.95rem;font-weight:700;letter-spacing:-.02em}
+.logo-text p{font-size:.7rem;color:var(--text-2);font-family:'JetBrains Mono',monospace}
+.badge{
+  background:var(--accent-lt);color:var(--accent);
+  font-size:.7rem;font-weight:600;padding:.3rem .75rem;
+  border-radius:99px;letter-spacing:.04em;border:1px solid #c7d5ff;
+}
+
+/* ── Layout ─────────────────────────────────────────── */
+main{max-width:1280px;margin:0 auto;padding:2rem 1.5rem}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr}}
+
+/* ── Section title ──────────────────────────────────── */
+.section-label{
+  display:flex;align-items:center;gap:.6rem;
+  font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-2);margin-bottom:1.2rem;
+}
+.section-label::before{
+  content:'';display:block;width:18px;height:3px;
+  background:var(--accent);border-radius:3px;
+}
+
+/* ── Card ───────────────────────────────────────────── */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.5rem;
+  box-shadow:var(--shadow);
+}
+.card-title{font-size:.88rem;font-weight:600;margin-bottom:1rem;color:var(--text-1)}
+
+/* ── Hero banner ────────────────────────────────────── */
+.hero{
+  background:linear-gradient(130deg,#EEF2FF 0%,#F0FDF4 60%,#FFFBEB 100%);
+  border:1px solid var(--border);border-radius:20px;
+  padding:2rem 2.5rem;margin-bottom:2rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  flex-wrap:wrap;
+}
+.hero-left h2{font-size:1.6rem;font-weight:700;letter-spacing:-.03em;margin-bottom:.3rem}
+.hero-left p{color:var(--text-2);font-size:.85rem;max-width:480px;line-height:1.6}
+.hero-meta{display:flex;gap:.75rem;margin-top:1rem;flex-wrap:wrap}
+.chip{
+  font-size:.72rem;font-weight:500;padding:.3rem .7rem;border-radius:99px;
+  border:1px solid var(--border);background:var(--surface);color:var(--text-2);
+}
+.chip.blue{background:var(--accent-lt);border-color:#c7d5ff;color:var(--accent)}
+.chip.green{background:#F0FDF4;border-color:#bbf7d0;color:#16a34a}
+.chip.amber{background:#FFFBEB;border-color:#fde68a;color:#b45309}
+
+.hero-stats{display:flex;gap:1.5rem;flex-wrap:wrap}
+.stat{text-align:center}
+.stat-val{font-size:1.4rem;font-weight:700;color:var(--accent)}
+.stat-key{font-size:.68rem;color:var(--text-3);margin-top:.1rem}
+
+/* ── Nav tabs ───────────────────────────────────────── */
+.tabs{display:flex;gap:.5rem;margin-bottom:1.75rem;flex-wrap:wrap}
+.tab-btn{
+  padding:.5rem 1.1rem;border-radius:99px;border:1px solid var(--border);
+  background:var(--surface);cursor:pointer;font-size:.8rem;font-weight:500;
+  color:var(--text-2);transition:all .2s;
+}
+.tab-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-lt)}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:var(--shadow-lg)}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* ── Image display ──────────────────────────────────── */
+.img-frame{
+  border-radius:10px;overflow:hidden;border:1px solid var(--border);
+  background:#f1f5f9;display:flex;align-items:center;justify-content:center;
+  min-height:160px;
+}
+.img-frame img{width:100%;height:auto;display:block}
+.img-label{
+  font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--text-2);text-align:center;margin-top:.5rem;
+}
+
+.channels-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+@media(max-width:600px){.channels-grid{grid-template-columns:1fr 1fr}}
+
+/* ── Props table ────────────────────────────────────── */
+.props-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.props-table tr{border-bottom:1px solid var(--border)}
+.props-table tr:last-child{border:none}
+.props-table td{padding:.5rem .25rem;color:var(--text-2)}
+.props-table td:first-child{font-weight:500;color:var(--text-1);width:45%}
+.props-table td:last-child{font-family:'JetBrains Mono',monospace;color:var(--accent)}
+
+/* ── Buttons ────────────────────────────────────────── */
+.btn{
+  padding:.55rem 1.2rem;border-radius:8px;font-size:.82rem;font-weight:600;
+  cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:.4rem;
+}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#3b67e8;box-shadow:var(--shadow-lg)}
+.btn-success{background:var(--accent2);color:#fff}
+.btn-success:hover{background:#16a34a}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-outline{background:var(--surface);color:var(--text-1);border:1px solid var(--border)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.btn-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+
+/* ── Upload zone ────────────────────────────────────── */
+.upload-zone{
+  border:2px dashed var(--border);border-radius:12px;padding:2.5rem 1rem;
+  text-align:center;cursor:pointer;transition:.2s;
+}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-lt)}
+.upload-zone input{display:none}
+.upload-zone p{font-size:.82rem;color:var(--text-2);margin-top:.5rem}
+.upload-zone .icon{font-size:2rem;margin-bottom:.5rem}
+
+/* ── Video ──────────────────────────────────────────── */
+.webcam-frame{
+  border-radius:12px;overflow:hidden;border:2px solid var(--border);
+  background:#0f172a;min-height:220px;display:flex;align-items:center;justify-content:center;
+}
+.webcam-frame img{width:100%;height:auto;display:block;border-radius:10px}
+.webcam-placeholder{color:var(--text-3);font-size:.82rem;text-align:center;padding:2rem}
+.webcam-placeholder .icon-big{font-size:2.5rem;margin-bottom:.5rem}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:.4rem}
+.dot.live{background:#22c55e;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-row{display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--text-2);margin-top:.5rem}
+
+/* ── Code block ─────────────────────────────────────── */
+.code-block{
+  background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1.2rem;
+  font-family:'JetBrains Mono',monospace;font-size:.75rem;line-height:1.65;
+  overflow-x:auto;margin-top:.75rem;
+}
+.kw{color:#93c5fd} .fn{color:#6ee7b7} .cm{color:#475569} .str{color:#fbbf24}
+
+/* ── Spinner ────────────────────────────────────────── */
+.spinner{
+  width:20px;height:20px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-row{display:flex;align-items:center;gap:.75rem;padding:1rem;color:var(--text-2);font-size:.8rem}
+
+/* ── Footer ─────────────────────────────────────────── */
+footer{
+  text-align:center;padding:2rem;color:var(--text-3);font-size:.75rem;
+  border-top:1px solid var(--border);margin-top:3rem;
+}
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+           viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+           <circle cx="11" cy="11" r="3"/></svg>
+    </div>
+    <div class="logo-text">
+      <h1>Machine Vision Pre-Lab</h1>
+      <p>Ayush Badwaik &nbsp;·&nbsp; CM23051</p>
+    </div>
+  </div>
+  <span class="badge">Pre-Lab Demonstration</span>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-left">
+      <h2>Machine Vision Lab 🔬</h2>
+      <p>Interactive demonstration of image loading, display, video capture, image properties,
+         color channel decomposition and webcam access using OpenCV & Python.</p>
+      <div class="hero-meta">
+        <span class="chip blue">OpenCV</span>
+        <span class="chip blue">Python</span>
+        <span class="chip green">Flask</span>
+        <span class="chip amber">NumPy</span>
+        <span class="chip">PIL</span>
+        <span class="chip">CM23051</span>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-val">6</div><div class="stat-key">Demos</div></div>
+      <div class="stat"><div class="stat-val">3</div><div class="stat-key">Channels</div></div>
+      <div class="stat"><div class="stat-val">30</div><div class="stat-key">FPS</div></div>
+      <div class="stat"><div class="stat-val">RGB</div><div class="stat-key">+ HSV</div></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('load')">📂 Image Loading</button>
+    <button class="tab-btn" onclick="switchTab('props')">📊 Properties</button>
+    <button class="tab-btn" onclick="switchTab('channels')">🎨 Color Channels</button>
+    <button class="tab-btn" onclick="switchTab('webcam')">📹 Webcam / Video</button>
+    <button class="tab-btn" onclick="switchTab('code')">💻 Source Code</button>
+  </div>
+
+  <!-- ── Tab: Image Loading & Display ─────────────────────── -->
+  <div class="tab-pane active" id="tab-load">
+    <div class="section-label">Image Loading &amp; Display</div>
+    <div class="grid-2">
+
+      <!-- Upload -->
+      <div class="card">
+        <div class="card-title">Load Image</div>
+        <label class="upload-zone" id="dropzone">
+          <input type="file" id="fileInput" accept="image/*" onchange="handleUpload(event)"/>
+          <div class="icon">🖼️</div>
+          <strong>Click to upload an image</strong>
+          <p>PNG, JPG, BMP, TIFF supported</p>
+        </label>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="loadDemoImage()">▶ Load Demo Image</button>
+          <button class="btn btn-outline" onclick="document.getElementById('fileInput').click()">📁 Browse</button>
+        </div>
+        <div id="loadStatus"></div>
+      </div>
+
+      <!-- Display -->
+      <div class="card">
+        <div class="card-title">Original Image</div>
+        <div class="img-frame" id="origFrame">
+          <div class="loading-row" id="origPlaceholder">
+            <span>Load an image to preview it here</span>
+          </div>
+        </div>
+        <div class="img-label" id="origLabel"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Properties ──────────────────────────────────── -->
+  <div class="tab-pane" id="tab-props">
+    <div class="section-label">Image Properties</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Spatial &amp; Pixel Info</div>
+        <table class="props-table" id="propsTable">
+          <tr><td colspan="2" style="color:var(--text-3);font-size:.8rem">Load an image first</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">Mean Channel Values</div>
+        <div id="channelBars" style="display:flex;flex-direction:column;gap:.75rem;margin-top:.5rem">
+          <p style="font-size:.8rem;color:var(--text-3)">Load an image to see channel statistics.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Color Channels ──────────────────────────────── -->
+  <div class="tab-pane" id="tab-channels">
+    <div class="section-label">Color Channel Decomposition</div>
+    <div class="card">
+      <div class="card-title">Channel Visualisation</div>
+      <div id="channelGrid" class="channels-grid">
+        <p style="grid-column:1/-1;font-size:.82rem;color:var(--text-3)">Load an image first to decompose its channels.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Webcam ───────────────────────────────────────── -->
+  <div class="tab-pane" id="tab-webcam">
+    <div class="section-label">Webcam &amp; Video Capture</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Live Video Feed</div>
+        <div class="webcam-frame" id="webcamFrame">
+          <div class="webcam-placeholder">
+            <div class="icon-big">📷</div>
+            <div>Click <strong>Start Webcam</strong> to begin live capture</div>
+          </div>
+        </div>
+        <div class="status-row" id="camStatus">
+          <span class="dot" id="camDot" style="background:var(--border)"></span>
+          <span id="camStatusText">Camera inactive</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-success" id="startBtn" onclick="startWebcam()">▶ Start Webcam</button>
+          <button class="btn btn-danger"  id="stopBtn"  onclick="stopWebcam()" disabled>⏹ Stop</button>
+          <button class="btn btn-outline" id="snapBtn"  onclick="takeSnapshot()" disabled>📸 Snapshot</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Captured Frame Analysis</div>
+        <div id="snapResult">
+          <p style="font-size:.82rem;color:var(--text-3)">Take a snapshot from the webcam to analyse it here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Source Code ─────────────────────────────────── -->
+  <div class="tab-pane" id="tab-code">
+    <div class="section-label">Source Code Reference</div>
+    <div class="grid-2">
+
+      <div class="card">
+        <div class="card-title">Image Loading &amp; Properties (OpenCV)</div>
+        <div class="code-block"><span class="cm"># 1. Image Loading</span>
+<span class="kw">import</span> cv2, numpy <span class="kw">as</span> np
+
+img = cv2.<span class="fn">imread</span>(<span class="str">"image.jpg"</span>)
+<span class="cm"># img is a NumPy array (H x W x 3) in BGR order</span>
+
+<span class="cm"># 2. Image Properties</span>
+h, w, c = img.shape       <span class="cm"># height, width, channels</span>
+dtype   = img.dtype        <span class="cm"># uint8</span>
+nbytes  = img.nbytes       <span class="cm"># total bytes in memory</span>
+
+<span class="cm"># 3. Displaying with OpenCV</span>
+cv2.<span class="fn">imshow</span>(<span class="str">"Window"</span>, img)
+cv2.<span class="fn">waitKey</span>(0)
+cv2.<span class="fn">destroyAllWindows</span>()</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Color Channel Splitting</div>
+        <div class="code-block"><span class="cm"># Split into B, G, R channels</span>
+b, g, r = cv2.<span class="fn">split</span>(img)
+
+<span class="cm"># Reconstruct individual channel views</span>
+zero  = np.<span class="fn">zeros_like</span>(b)
+r_vis = cv2.<span class="fn">merge</span>([zero, zero, r])
+g_vis = cv2.<span class="fn">merge</span>([zero, g, zero])
+b_vis = cv2.<span class="fn">merge</span>([b, zero, zero])
+
+<span class="cm"># Convert to greyscale</span>
+gray = cv2.<span class="fn">cvtColor</span>(img, cv2.COLOR_BGR2GRAY)
+
+<span class="cm"># Convert to HSV</span>
+hsv  = cv2.<span class="fn">cvtColor</span>(img, cv2.COLOR_BGR2HSV)
+
+<span class="cm"># Channel mean values</span>
+mean = cv2.<span class="fn">mean</span>(img)   <span class="cm"># (B, G, R, 0)</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Webcam / Video Capture</div>
+        <div class="code-block"><span class="cm"># Access webcam (index 0 = default camera)</span>
+cap = cv2.<span class="fn">VideoCapture</span>(0)
+
+<span class="kw">while</span> cap.<span class="fn">isOpened</span>():
+    ret, frame = cap.<span class="fn">read</span>()
+    <span class="kw">if not</span> ret:
+        <span class="kw">break</span>
+
+    <span class="cm"># Process frame</span>
+    gray = cv2.<span class="fn">cvtColor</span>(frame, cv2.COLOR_BGR2GRAY)
+    cv2.<span class="fn">imshow</span>(<span class="str">"Webcam"</span>, frame)
+
+    <span class="kw">if</span> cv2.<span class="fn">waitKey</span>(1) &amp; 0xFF == <span class="fn">ord</span>(<span class="str">'q'</span>):
+        <span class="kw">break</span>
+
+cap.<span class="fn">release</span>()
+cv2.<span class="fn">destroyAllWindows</span>()</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Video File Capture &amp; Saving</div>
+        <div class="code-block"><span class="cm"># Read from a video file</span>
+cap = cv2.<span class="fn">VideoCapture</span>(<span class="str">"video.mp4"</span>)
+
+fps  = cap.<span class="fn">get</span>(cv2.CAP_PROP_FPS)
+w    = <span class="fn">int</span>(cap.<span class="fn">get</span>(cv2.CAP_PROP_FRAME_WIDTH))
+h    = <span class="fn">int</span>(cap.<span class="fn">get</span>(cv2.CAP_PROP_FRAME_HEIGHT))
+
+<span class="cm"># VideoWriter to save output</span>
+fourcc = cv2.<span class="fn">VideoWriter_fourcc</span>(<span class="str">*'mp4v'</span>)
+out    = cv2.<span class="fn">VideoWriter</span>(<span class="str">'out.mp4'</span>, fourcc, fps, (w, h))
+
+<span class="kw">while</span> cap.<span class="fn">isOpened</span>():
+    ret, frame = cap.<span class="fn">read</span>()
+    <span class="kw">if not</span> ret: <span class="kw">break</span>
+    out.<span class="fn">write</span>(frame)
+
+cap.<span class="fn">release</span>(); out.<span class="fn">release</span>()</div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Machine Vision Pre-Lab &nbsp;·&nbsp;
+  <strong>Ayush Badwaik</strong> &nbsp;·&nbsp; CM23051 &nbsp;·&nbsp;
+  OpenCV | Python | Flask | NumPy
+</footer>
+
+<script>
+// ── State ──────────────────────────────────────────────
+let currentData  = null;
+let webcamActive = false;
+
+// ── Tab switching ──────────────────────────────────────
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ── Load Demo Image ────────────────────────────────────
+function loadDemoImage(){
+  setLoadStatus('⏳ Loading demo image…');
+  fetch('/api/demo-image')
+    .then(r=>r.json()).then(renderData)
+    .catch(e=>setLoadStatus('❌ '+e));
+}
+
+function handleUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const fd = new FormData();
+  fd.append('image', file);
+  setLoadStatus('⏳ Uploading & analysing…');
+  fetch('/api/upload',{method:'POST',body:fd})
+    .then(r=>r.json()).then(data=>{
+      if(data.error) return setLoadStatus('❌ '+data.error);
+      renderData(data);
+    }).catch(e=>setLoadStatus('❌ '+e));
+}
+
+function setLoadStatus(msg){
+  document.getElementById('loadStatus').innerHTML =
+    `<p style="font-size:.78rem;color:var(--text-2);margin-top:.6rem">${msg}</p>`;
+}
+
+function renderData(data){
+  currentData = data;
+  setLoadStatus('✅ Image loaded successfully');
+
+  // Original image
+  const frame = document.getElementById('origFrame');
+  frame.innerHTML = `<img src="${data.channels.original}" alt="Original"/>`;
+  document.getElementById('origLabel').textContent = 'Original (BGR)';
+
+  // Properties table
+  renderProps(data.properties);
+
+  // Channel bars
+  renderChannelBars(data.properties);
+
+  // Channel grid
+  renderChannels(data.channels);
+}
+
+function renderProps(p){
+  const rows = [
+    ['Dimensions',   `${p.width} × ${p.height} px`],
+    ['Channels',     p.channels],
+    ['Data Type',    p.dtype],
+    ['Total Pixels', p.total_pixels.toLocaleString()],
+    ['Memory Size',  `${p.size_kb} KB`],
+    ['Aspect Ratio', p.aspect_ratio],
+    ['Mean R',       p.mean_r],
+    ['Mean G',       p.mean_g],
+    ['Mean B',       p.mean_b],
+  ];
+  document.getElementById('propsTable').innerHTML =
+    rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+}
+
+function renderChannelBars(p){
+  const bars = [
+    {label:'Red Channel',   val:p.mean_r, color:'#ef4444'},
+    {label:'Green Channel', val:p.mean_g, color:'#22c55e'},
+    {label:'Blue Channel',  val:p.mean_b, color:'#3b82f6'},
+  ];
+  document.getElementById('channelBars').innerHTML = bars.map(({label,val,color})=>`
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:.3rem">
+        <span style="font-weight:500">${label}</span>
+        <span style="font-family:'JetBrains Mono',monospace;color:${color}">${val} / 255</span>
+      </div>
+      <div style="height:8px;background:var(--border);border-radius:99px;overflow:hidden">
+        <div style="height:100%;width:${(val/255*100).toFixed(1)}%;background:${color};border-radius:99px;transition:.6s"></div>
+      </div>
+    </div>`).join('');
+}
+
+function renderChannels(ch){
+  const labels = {
+    original:'Original', red:'Red Channel', green:'Green Channel',
+    blue:'Blue Channel', grayscale:'Grayscale', hsv:'HSV'
+  };
+  const colors = {
+    original:'#64748b', red:'#ef4444', green:'#22c55e',
+    blue:'#3b82f6',     grayscale:'#94a3b8', hsv:'#a855f7'
+  };
+  document.getElementById('channelGrid').innerHTML =
+    Object.entries(labels).map(([key,label])=>`
+      <div>
+        <div class="img-frame"><img src="${ch[key]}" alt="${label}"/></div>
+        <div class="img-label" style="color:${colors[key]}">${label}</div>
+      </div>`).join('');
+}
+
+// ── Webcam ─────────────────────────────────────────────
+function startWebcam(){
+  fetch('/api/webcam/start').then(r=>r.json()).then(d=>{
+    if(d.error){alert('Webcam error: '+d.error);return;}
+    webcamActive = true;
+    document.getElementById('webcamFrame').innerHTML =
+      `<img src="/video_feed" alt="Live feed" style="width:100%;border-radius:10px"/>`;
+    setCamStatus(true);
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled  = false;
+    document.getElementById('snapBtn').disabled  = false;
+  }).catch(()=>alert('Could not reach server'));
+}
+
+function stopWebcam(){
+  fetch('/api/webcam/stop').then(()=>{
+    webcamActive = false;
+    document.getElementById('webcamFrame').innerHTML =
+      `<div class="webcam-placeholder"><div class="icon-big">📷</div><div>Webcam stopped</div></div>`;
+    setCamStatus(false);
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled  = true;
+    document.getElementById('snapBtn').disabled  = true;
+  });
+}
+
+function takeSnapshot(){
+  fetch('/api/webcam/snapshot').then(r=>r.json()).then(data=>{
+    if(data.error){alert(data.error);return;}
+    const el = document.getElementById('snapResult');
+    el.innerHTML = `
+      <div class="img-frame" style="margin-bottom:.75rem">
+        <img src="${data.channels.original}" alt="Snapshot"/>
+      </div>
+      <table class="props-table">
+        ${[
+          ['Width × Height', `${data.properties.width} × ${data.properties.height}`],
+          ['Channels', data.properties.channels],
+          ['Size', `${data.properties.size_kb} KB`],
+          ['Mean R/G/B', `${data.properties.mean_r} / ${data.properties.mean_g} / ${data.properties.mean_b}`],
+        ].map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
+      </table>`;
+  });
+}
+
+function setCamStatus(active){
+  const dot  = document.getElementById('camDot');
+  const text = document.getElementById('camStatusText');
+  dot.className  = 'dot' + (active ? ' live' : '');
+  dot.style.background = active ? '' : 'var(--border)';
+  text.textContent = active ? 'Live — capturing frames at 30 fps' : 'Camera inactive';
+}
+</script>
+</body>
+</html>
