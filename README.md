@@ -1,6 +1,6 @@
 # Department of Emerging Technologies CSE (AI&ML)
 ## S. B. Jain Institute of Technology, Management & Research, Nagpur
-### Course Code: CM23051 - Machine Vision Laboratory
+### Course: Machine Vision Laboratory
 
 This repository contains the complete practical codebase and an interactive Web Application for **Practicals 1 to 9** of the Machine Vision course curriculum.
 
