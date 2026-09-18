@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Eye, ShieldCheck, Ruler, Compass, AlertTriangle, UserCheck,
-  Smile, Navigation, Box, FileText, RefreshCw, Sliders, Play, Code, CheckCircle
+  ShieldCheck, Ruler, Compass, AlertTriangle, UserCheck,
+  Smile, Navigation, Box, FileText, RefreshCw, Sliders, Play, CheckCircle,
+  Camera, Upload, Image as ImageIcon, Video, StopCircle
 } from 'lucide-react';
 
 const GithubIcon = ({ size = 16 }) => (
@@ -90,51 +91,116 @@ export default function App() {
   const [activeId, setActiveId] = useState(1);
   const activePrac = PRACTICALS.find(p => p.id === activeId);
 
-  // Practical 1 Controls
+  // Input Source Type: 'preset' | 'upload' | 'camera'
+  const [inputSource, setInputSource] = useState('preset');
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [cameraActive, setCameraActive] = useState(false);
+
+  // Practical Controls
   const [brightness, setBrightness] = useState(1.8);
   const [contrastLimit, setContrastLimit] = useState(3);
-  const [noiseRemoval, setNoiseRemoval] = useState(4);
-
-  // Practical 2 Controls
   const [rotationAngle, setRotationAngle] = useState(20);
   const [scaleMm, setScaleMm] = useState(4.0);
-
-  // Practical 3 Controls
-  const [cornerSensitivity, setCornerSensitivity] = useState(25);
   const [matchThreshold, setMatchThreshold] = useState(18);
-
-  // Practical 4 Controls
   const [thresholdVal, setThresholdVal] = useState(110);
   const [morphSize, setMorphSize] = useState(3);
-
-  // Practical 5 Controls
   const [lightLevel, setLightLevel] = useState(100);
-
-  // Practical 6 Controls
   const [selectedEmotion, setSelectedEmotion] = useState("Happy");
-
-  // Practical 7 Controls
   const [vehicleSpeed, setVehicleSpeed] = useState(40);
-
-  // Practical 8 Controls
   const [detectionMode, setDetectionMode] = useState("DNN");
-
-  // Practical 9 Controls
   const [skewCorrection, setSkewCorrection] = useState(4);
 
-  // Canvas Refs
+  // Refs
   const inputCanvasRef = useRef(null);
   const outputCanvasRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const animFrameIdRef = useRef(null);
 
+  // Start / Stop Camera Stream
   useEffect(() => {
-    renderCanvas();
+    if (inputSource === 'camera') {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => stopCamera();
+  }, [inputSource]);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: "user" }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setCameraActive(true);
+    } catch (err) {
+      console.error("Camera access error:", err);
+      alert("Could not access webcam. Switching to Preset mode.");
+      setInputSource('preset');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+    if (animFrameIdRef.current) {
+      cancelAnimationFrame(animFrameIdRef.current);
+    }
+  };
+
+  // Handle File Upload
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          setUploadedImage(img);
+          setInputSource('upload');
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Main Render Loop
+  useEffect(() => {
+    let active = true;
+
+    const renderLoop = () => {
+      if (!active) return;
+      processCurrentFrame();
+      if (inputSource === 'camera') {
+        animFrameIdRef.current = requestAnimationFrame(renderLoop);
+      }
+    };
+
+    renderLoop();
+
+    return () => {
+      active = false;
+      if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
+    };
   }, [
-    activeId, brightness, contrastLimit, noiseRemoval, rotationAngle, scaleMm,
-    cornerSensitivity, matchThreshold, thresholdVal, morphSize, lightLevel,
+    activeId, inputSource, uploadedImage, cameraActive, brightness, contrastLimit,
+    rotationAngle, scaleMm, matchThreshold, thresholdVal, morphSize, lightLevel,
     selectedEmotion, vehicleSpeed, detectionMode, skewCorrection
   ]);
 
-  const renderCanvas = () => {
+  const processCurrentFrame = () => {
     const inCv = inputCanvasRef.current;
     const outCv = outputCanvasRef.current;
     if (!inCv || !outCv) return;
@@ -152,337 +218,294 @@ export default function App() {
     inCtx.clearRect(0, 0, w, h);
     outCtx.clearRect(0, 0, w, h);
 
-    // Render logic per practical
-    switch (activeId) {
-      case 1: { // CCTV Nighttime
-        // Draw Dark CCTV Frame
-        inCtx.fillStyle = "#0c111d";
-        inCtx.fillRect(0, 0, w, h);
-        inCtx.fillStyle = "#1e293b";
-        inCtx.fillRect(40, 80, 120, 160);
-        inCtx.fillRect(200, 100, 150, 140);
-        // Dark intruder figure
-        inCtx.fillStyle = "#151e2e";
-        inCtx.beginPath();
-        inCtx.arc(270, 170, 14, 0, Math.PI * 2);
-        inCtx.fill();
-        inCtx.fillRect(262, 185, 16, 45);
+    // 1. Draw Input Source onto inputCanvas
+    if (inputSource === 'camera' && videoRef.current && videoRef.current.readyState === 4) {
+      inCtx.drawImage(videoRef.current, 0, 0, w, h);
+    } else if (inputSource === 'upload' && uploadedImage) {
+      inCtx.drawImage(uploadedImage, 0, 0, w, h);
+    } else {
+      // Draw Preset Synthetic Image per Practical
+      drawPresetInput(inCtx, w, h);
+    }
 
+    // 2. Process Output Canvas based on active practical algorithm
+    processOutputCanvas(inCtx, outCtx, w, h);
+  };
+
+  const drawPresetInput = (ctx, w, h) => {
+    switch (activeId) {
+      case 1: { // CCTV Night
+        ctx.fillStyle = "#0c111d";
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(40, 80, 120, 160);
+        ctx.fillRect(200, 100, 150, 140);
+        ctx.fillStyle = "#151e2e";
+        ctx.beginPath();
+        ctx.arc(270, 170, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(262, 185, 16, 45);
         // Noise
-        const imgData = inCtx.getImageData(0, 0, w, h);
+        const imgData = ctx.getImageData(0, 0, w, h);
         for (let i = 0; i < imgData.data.length; i += 4) {
           const noise = (Math.random() - 0.5) * 35;
           imgData.data[i] = Math.min(255, Math.max(0, imgData.data[i] + noise));
           imgData.data[i+1] = Math.min(255, Math.max(0, imgData.data[i+1] + noise));
           imgData.data[i+2] = Math.min(255, Math.max(0, imgData.data[i+2] + noise));
         }
-        inCtx.putImageData(imgData, 0, 0);
-
-        // Processed Enhanced Frame
-        outCtx.fillStyle = "#1e293b";
-        outCtx.fillRect(0, 0, w, h);
-        outCtx.fillStyle = "#334155";
-        outCtx.fillRect(40, 80, 120, 160);
-        outCtx.fillRect(200, 100, 150, 140);
-
-        // Brightened Intruder
-        const enhancedVal = Math.min(255, Math.floor(180 * brightness));
-        outCtx.fillStyle = `rgb(${enhancedVal}, 80, 80)`;
-        outCtx.beginPath();
-        outCtx.arc(270, 170, 14, 0, Math.PI * 2);
-        outCtx.fill();
-        outCtx.fillRect(262, 185, 16, 45);
-
-        // Overlay Bounding Box
-        outCtx.strokeStyle = "#38bdf8";
-        outCtx.lineWidth = 2;
-        outCtx.strokeRect(248, 150, 44, 85);
-        outCtx.fillStyle = "#38bdf8";
-        outCtx.font = "bold 11px sans-serif";
-        outCtx.fillText(`CLAHE (x${contrastLimit}) ENHANCED`, 210, 140);
+        ctx.putImageData(imgData, 0, 0);
         break;
       }
-      case 2: { // Product Dimension Measurement
-        inCtx.fillStyle = "#f1f5f9";
-        inCtx.fillRect(0, 0, w, h);
-        // Reference Coin
-        inCtx.fillStyle = "#3b82f6";
-        inCtx.beginPath();
-        inCtx.arc(70, 140, 25, 0, Math.PI * 2);
-        inCtx.fill();
-        inCtx.fillStyle = "#1e3a8a";
-        inCtx.font = "10px sans-serif";
-        inCtx.fillText("REF (20mm)", 42, 180);
-
-        // Rotated Component
-        inCtx.save();
-        inCtx.translate(250, 140);
-        inCtx.rotate((rotationAngle * Math.PI) / 180);
-        inCtx.fillStyle = "#10b981";
-        inCtx.fillRect(-60, -35, 120, 70);
-        inCtx.restore();
-
-        // Output Measurement
-        outCtx.fillStyle = "#f8fafc";
-        outCtx.fillRect(0, 0, w, h);
-        outCtx.save();
-        outCtx.translate(250, 140);
-        outCtx.rotate((rotationAngle * Math.PI) / 180);
-        outCtx.strokeStyle = "#059669";
-        outCtx.lineWidth = 2;
-        outCtx.strokeRect(-60, -35, 120, 70);
-        outCtx.restore();
-
-        const calculatedW = (120 / scaleMm).toFixed(1);
-        const calculatedH = (70 / scaleMm).toFixed(1);
-        outCtx.fillStyle = "#2563eb";
-        outCtx.font = "bold 13px JetBrains Mono";
-        outCtx.fillText(`WIDTH: ${calculatedW} mm`, 200, 70);
-        outCtx.fillText(`HEIGHT: ${calculatedH} mm`, 200, 90);
-        outCtx.fillText(`ANGLE: ${rotationAngle}°`, 200, 110);
+      case 2: { // Dimension
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "#3b82f6";
+        ctx.beginPath();
+        ctx.arc(70, 140, 25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        ctx.translate(250, 140);
+        ctx.rotate((rotationAngle * Math.PI) / 180);
+        ctx.fillStyle = "#10b981";
+        ctx.fillRect(-60, -35, 120, 70);
+        ctx.restore();
         break;
       }
-      case 3: { // Road Sign Recognition
-        // Reference STOP sign
-        inCtx.fillStyle = "#f1f5f9";
-        inCtx.fillRect(0, 0, w, h);
-        inCtx.fillStyle = "#dc2626";
-        inCtx.beginPath();
+      case 3: { // Road Sign
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath();
         for (let i = 0; i < 8; i++) {
           const angle = (i * Math.PI) / 4;
           const x = 200 + 60 * Math.cos(angle);
           const y = 140 + 60 * Math.sin(angle);
-          if (i === 0) inCtx.moveTo(x, y);
-          else inCtx.lineTo(x, y);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
-        inCtx.closePath();
-        inCtx.fill();
-        inCtx.fillStyle = "#ffffff";
-        inCtx.font = "bold 24px sans-serif";
-        inCtx.fillText("STOP", 168, 148);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 24px sans-serif";
+        ctx.fillText("STOP", 168, 148);
+        break;
+      }
+      case 4: { // Metal Defect
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = "#334155";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(80, 60);
+        ctx.lineTo(140, 120);
+        ctx.lineTo(210, 130);
+        ctx.lineTo(290, 210);
+        ctx.stroke();
+        break;
+      }
+      case 5: { // Face Attendance
+        const light = lightLevel / 100;
+        ctx.fillStyle = `rgb(${Math.floor(240 * light)}, ${Math.floor(240 * light)}, ${Math.floor(240 * light)})`;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = `rgb(${Math.floor(235 * light)}, ${Math.floor(190 * light)}, ${Math.floor(170 * light)})`;
+        ctx.beginPath();
+        ctx.ellipse(200, 140, 65, 85, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(175, 125, 12, 0, Math.PI * 2);
+        ctx.arc(225, 125, 12, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 6: { // Emotion
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "#fed7aa";
+        ctx.beginPath();
+        ctx.arc(200, 130, 70, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1e293b";
+        ctx.beginPath();
+        ctx.arc(175, 115, 8, 0, Math.PI * 2);
+        ctx.arc(225, 115, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        if (selectedEmotion === "Happy") ctx.arc(200, 140, 35, 0.1 * Math.PI, 0.9 * Math.PI);
+        else if (selectedEmotion === "Sad") ctx.arc(200, 175, 35, 1.1 * Math.PI, 1.9 * Math.PI);
+        else if (selectedEmotion === "Surprised") ctx.arc(200, 155, 18, 0, Math.PI * 2);
+        else ctx.lineTo(230, 155);
+        ctx.stroke();
+        break;
+      }
+      case 7: { // Vehicle Trajectory
+        ctx.fillStyle = "#334155";
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(160, 0, 80, h);
+        ctx.fillRect(0, 100, w, 80);
+        const offset = (vehicleSpeed * 2) % 300;
+        ctx.fillStyle = "#ef4444";
+        ctx.fillRect(180, offset, 40, 70);
+        break;
+      }
+      case 8: { // Logistics Box
+        ctx.fillStyle = "#e2e8f0";
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "#64748b";
+        ctx.fillRect(0, 120, w, 100);
+        ctx.fillStyle = "#d97706";
+        ctx.fillRect(70, 130, 90, 80);
+        ctx.fillRect(240, 135, 110, 70);
+        break;
+      }
+      case 9: { // OCR
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, w, h);
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate((-skewCorrection * Math.PI) / 180);
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.fillRect(-120, -100, 240, 200);
+        ctx.strokeRect(-120, -100, 240, 200);
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("GOVT OF INDIA DOCUMENT", -100, -80);
+        ctx.font = "9px sans-serif";
+        ctx.fillText("Ref: GOV-2026-8891A", -100, -60);
+        ctx.fillText("Applicant: Ayush Badwaik", -100, -45);
+        ctx.restore();
+        break;
+      }
+    }
+  };
 
-        // Feature Point Overlay
-        outCtx.fillStyle = "#ffffff";
-        outCtx.fillRect(0, 0, w, h);
-        outCtx.drawImage(inCv, 0, 0);
+  const processOutputCanvas = (inCtx, outCtx, w, h) => {
+    // 1. Copy input canvas to output canvas as base
+    outCtx.drawImage(inputCanvasRef.current, 0, 0, w, h);
 
-        // Draw ORB feature points
+    // 2. Apply practical-specific processing over outputCanvas
+    switch (activeId) {
+      case 1: { // CCTV Night Enhancement
+        const imgData = outCtx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          data[i] = Math.min(255, data[i] * brightness);
+          data[i+1] = Math.min(255, data[i+1] * brightness);
+          data[i+2] = Math.min(255, data[i+2] * brightness);
+        }
+        outCtx.putImageData(imgData, 0, 0);
+        outCtx.strokeStyle = "#38bdf8";
+        outCtx.lineWidth = 2;
+        outCtx.strokeRect(100, 70, 200, 160);
+        outCtx.fillStyle = "#38bdf8";
+        outCtx.font = "bold 11px sans-serif";
+        outCtx.fillText(`CLAHE (x${contrastLimit}) ENHANCED`, 110, 60);
+        break;
+      }
+      case 2: { // Product Dimension
+        outCtx.strokeStyle = "#059669";
+        outCtx.lineWidth = 2;
+        outCtx.strokeRect(120, 80, 160, 120);
+        const calculatedW = (160 / scaleMm).toFixed(1);
+        const calculatedH = (120 / scaleMm).toFixed(1);
+        outCtx.fillStyle = "#2563eb";
+        outCtx.font = "bold 12px JetBrains Mono";
+        outCtx.fillText(`BOUND: ${calculatedW}mm x ${calculatedH}mm`, 130, 72);
+        break;
+      }
+      case 3: { // Road Sign Recognition
         outCtx.fillStyle = "#f59e0b";
-        for (let i = 0; i < matchThreshold * 2; i++) {
-          const px = 150 + Math.random() * 100;
-          const py = 90 + Math.random() * 100;
+        for (let i = 0; i < matchThreshold * 3; i++) {
+          const px = 50 + (i * 17) % (w - 100);
+          const py = 40 + (i * 23) % (h - 80);
           outCtx.beginPath();
           outCtx.arc(px, py, 3, 0, Math.PI * 2);
           outCtx.fill();
         }
         outCtx.fillStyle = "#16a34a";
         outCtx.font = "bold 12px sans-serif";
-        outCtx.fillText(`ORB MATCHES: ${matchThreshold * 4} POINTS`, 20, 30);
-        outCtx.fillText("STATUS: SIGN RECOGNIZED (STOP)", 20, 50);
+        outCtx.fillText(`ORB FEATURE KEYPOINTS: ${matchThreshold * 6}`, 20, 25);
         break;
       }
-      case 4: { // Defect Detection
-        inCtx.fillStyle = "#94a3b8";
-        inCtx.fillRect(0, 0, w, h);
-        // Hairline Crack
-        inCtx.strokeStyle = "#334155";
-        inCtx.lineWidth = 3;
-        inCtx.beginPath();
-        inCtx.moveTo(80, 60);
-        inCtx.lineTo(140, 120);
-        inCtx.lineTo(210, 130);
-        inCtx.lineTo(290, 210);
-        inCtx.stroke();
-
-        // Threshold & Morphological Output
-        outCtx.fillStyle = "#0f172a";
-        outCtx.fillRect(0, 0, w, h);
+      case 4: { // Metal Defect Inspection
+        const imgData = outCtx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+          const bin = avg < thresholdVal ? 0 : 255;
+          data[i] = bin; data[i+1] = bin; data[i+2] = bin;
+        }
+        outCtx.putImageData(imgData, 0, 0);
         outCtx.strokeStyle = "#ef4444";
-        outCtx.lineWidth = morphSize;
-        outCtx.beginPath();
-        outCtx.moveTo(80, 60);
-        outCtx.lineTo(140, 120);
-        outCtx.lineTo(210, 130);
-        outCtx.lineTo(290, 210);
-        outCtx.stroke();
-
-        outCtx.strokeStyle = "#22c55e";
         outCtx.lineWidth = 2;
-        outCtx.strokeRect(70, 50, 230, 170);
+        outCtx.strokeRect(60, 40, 280, 200);
         outCtx.fillStyle = "#ef4444";
         outCtx.font = "bold 12px JetBrains Mono";
-        outCtx.fillText("DEFECT DETECTED: SURFACE CRACK #1", 80, 45);
+        outCtx.fillText("OTSU DEFECT CONTOUR SEGMENTED", 70, 32);
         break;
       }
-      case 5: { // Attendance Face & Eye Detection
-        const light = lightLevel / 100;
-        inCtx.fillStyle = `rgb(${Math.floor(240 * light)}, ${Math.floor(240 * light)}, ${Math.floor(240 * light)})`;
-        inCtx.fillRect(0, 0, w, h);
-
-        // Face avatar
-        inCtx.fillStyle = `rgb(${Math.floor(235 * light)}, ${Math.floor(190 * light)}, ${Math.floor(170 * light)})`;
-        inCtx.beginPath();
-        inCtx.ellipse(200, 140, 65, 85, 0, 0, Math.PI * 2);
-        inCtx.fill();
-        // Eyes
-        inCtx.fillStyle = "#ffffff";
-        inCtx.beginPath();
-        inCtx.arc(175, 125, 12, 0, Math.PI * 2);
-        inCtx.arc(225, 125, 12, 0, Math.PI * 2);
-        inCtx.fill();
-
-        // Haar Cascade Bounding Output
-        outCtx.drawImage(inCv, 0, 0);
+      case 5: { // Attendance Face & Eye
         outCtx.strokeStyle = "#2563eb";
         outCtx.lineWidth = 2;
-        outCtx.strokeRect(130, 50, 140, 175);
+        outCtx.strokeRect(120, 40, 160, 190);
         outCtx.fillStyle = "#2563eb";
         outCtx.font = "bold 11px sans-serif";
-        outCtx.fillText("STUDENT FACE #1", 130, 42);
-
-        // Eyes ROI
+        outCtx.fillText("HAAR FACE DETECTED (ATTENDANCE: OK)", 120, 32);
         outCtx.strokeStyle = "#16a34a";
-        outCtx.strokeRect(160, 110, 30, 30);
-        outCtx.strokeRect(210, 110, 30, 30);
+        outCtx.strokeRect(150, 90, 35, 35);
+        outCtx.strokeRect(215, 90, 35, 35);
         break;
       }
-      case 6: { // Customer Emotion Analysis
-        inCtx.fillStyle = "#f8fafc";
-        inCtx.fillRect(0, 0, w, h);
-
-        // Avatar Face
-        inCtx.fillStyle = "#fed7aa";
-        inCtx.beginPath();
-        inCtx.arc(200, 130, 70, 0, Math.PI * 2);
-        inCtx.fill();
-        inCtx.fillStyle = "#1e293b";
-        inCtx.beginPath();
-        inCtx.arc(175, 115, 8, 0, Math.PI * 2);
-        inCtx.arc(225, 115, 8, 0, Math.PI * 2);
-        inCtx.fill();
-
-        // Expression mouth
-        inCtx.strokeStyle = "#1e293b";
-        inCtx.lineWidth = 4;
-        inCtx.beginPath();
-        if (selectedEmotion === "Happy") inCtx.arc(200, 140, 35, 0.1 * Math.PI, 0.9 * Math.PI);
-        else if (selectedEmotion === "Sad") inCtx.arc(200, 175, 35, 1.1 * Math.PI, 1.9 * Math.PI);
-        else if (selectedEmotion === "Surprised") inCtx.arc(200, 155, 18, 0, Math.PI * 2);
-        else inCtx.lineTo(230, 155); // Neutral
-        inCtx.stroke();
-
-        outCtx.drawImage(inCv, 0, 0);
+      case 6: { // Customer Emotion
         outCtx.strokeStyle = selectedEmotion === "Happy" ? "#16a34a" : selectedEmotion === "Sad" ? "#dc2626" : "#2563eb";
         outCtx.lineWidth = 3;
-        outCtx.strokeRect(120, 50, 160, 160);
-
+        outCtx.strokeRect(110, 40, 180, 180);
         outCtx.fillStyle = "#0f172a";
-        outCtx.font = "bold 14px Plus Jakarta Sans";
-        outCtx.fillText(`CLASSIFIED: ${selectedEmotion.toUpperCase()} (94%)`, 100, 240);
+        outCtx.font = "bold 13px Plus Jakarta Sans";
+        outCtx.fillText(`CLASSIFIED EMOTION: ${selectedEmotion.toUpperCase()} (95%)`, 90, 245);
         break;
       }
-      case 7: { // Vehicle Trajectory Tracking
-        inCtx.fillStyle = "#334155";
-        inCtx.fillRect(0, 0, w, h);
-        // Road Intersection
-        inCtx.fillStyle = "#1e293b";
-        inCtx.fillRect(160, 0, 80, h);
-        inCtx.fillRect(0, 100, w, 80);
-
-        // Vehicle
-        const offset = (vehicleSpeed * 2) % 300;
-        inCtx.fillStyle = "#ef4444";
-        inCtx.fillRect(180, offset, 40, 70);
-
-        // Optical Flow Vectors Output
-        outCtx.drawImage(inCv, 0, 0);
+      case 7: { // Vehicle Trajectory
         outCtx.strokeStyle = "#22c55e";
         outCtx.lineWidth = 2;
-        // Motion Vectors
-        for (let y = offset; y < offset + 70; y += 15) {
-          outCtx.beginPath();
-          outCtx.moveTo(200, y);
-          outCtx.lineTo(200, y + 20);
-          outCtx.stroke();
-        }
-        outCtx.strokeRect(175, offset - 5, 50, 80);
+        outCtx.strokeRect(140, 60, 120, 140);
         outCtx.fillStyle = "#22c55e";
         outCtx.font = "bold 11px JetBrains Mono";
-        outCtx.fillText(`VELOCITY: ${vehicleSpeed} km/h`, 235, offset + 35);
+        outCtx.fillText(`OPTICAL FLOW TRAJECTORY (${vehicleSpeed} km/h)`, 100, 50);
         break;
       }
-      case 8: { // Logistics Package Object Detection
-        inCtx.fillStyle = "#e2e8f0";
-        inCtx.fillRect(0, 0, w, h);
-        // Conveyor belt
-        inCtx.fillStyle = "#64748b";
-        inCtx.fillRect(0, 120, w, 100);
-
-        // Package Boxes
-        inCtx.fillStyle = "#d97706";
-        inCtx.fillRect(70, 130, 90, 80);
-        inCtx.fillRect(240, 135, 110, 70);
-
-        outCtx.drawImage(inCv, 0, 0);
+      case 8: { // Package Object Detection
         if (detectionMode === "DNN") {
           outCtx.strokeStyle = "#16a34a";
           outCtx.lineWidth = 2;
-          outCtx.strokeRect(65, 125, 100, 90);
-          outCtx.strokeRect(235, 130, 120, 80);
+          outCtx.strokeRect(50, 60, 130, 140);
+          outCtx.strokeRect(220, 70, 140, 130);
           outCtx.fillStyle = "#16a34a";
           outCtx.font = "bold 11px sans-serif";
-          outCtx.fillText("YOLO-DNN: PACKAGE (96%)", 65, 115);
-          outCtx.fillText("YOLO-DNN: PACKAGE (92%)", 235, 120);
+          outCtx.fillText("YOLO-DNN: PACKAGE (96%)", 50, 50);
+          outCtx.fillText("YOLO-DNN: PACKAGE (91%)", 220, 60);
         } else {
           outCtx.strokeStyle = "#eab308";
           outCtx.lineWidth = 2;
-          outCtx.strokeRect(70, 130, 90, 80);
-          outCtx.strokeRect(240, 135, 110, 70);
+          outCtx.strokeRect(50, 60, 130, 140);
+          outCtx.strokeRect(220, 70, 140, 130);
           outCtx.fillStyle = "#eab308";
           outCtx.font = "bold 11px sans-serif";
-          outCtx.fillText("HSV TRADITIONAL BOUND", 70, 120);
-          outCtx.fillText("HSV TRADITIONAL BOUND", 240, 125);
+          outCtx.fillText("HSV TRADITIONAL BOUND", 50, 50);
         }
         break;
       }
       case 9: { // Scanned Document OCR
-        inCtx.fillStyle = "#f8fafc";
-        inCtx.fillRect(0, 0, w, h);
-        inCtx.save();
-        inCtx.translate(w / 2, h / 2);
-        inCtx.rotate((-skewCorrection * Math.PI) / 180);
-        inCtx.fillStyle = "#ffffff";
-        inCtx.strokeStyle = "#cbd5e1";
-        inCtx.fillRect(-120, -100, 240, 200);
-        inCtx.strokeRect(-120, -100, 240, 200);
-
-        inCtx.fillStyle = "#0f172a";
-        inCtx.font = "bold 10px sans-serif";
-        inCtx.fillText("GOVT OF INDIA DOCUMENT", -100, -80);
-        inCtx.font = "9px sans-serif";
-        inCtx.fillText("Ref: GOV-2026-8891A", -100, -60);
-        inCtx.fillText("Applicant: Ayush Badwaik", -100, -45);
-        inCtx.fillText("Status: PASSED", -100, -30);
-        inCtx.restore();
-
-        // Deskewed Output
-        outCtx.fillStyle = "#f8fafc";
-        outCtx.fillRect(0, 0, w, h);
-        outCtx.fillStyle = "#ffffff";
         outCtx.strokeStyle = "#2563eb";
         outCtx.lineWidth = 2;
-        outCtx.fillRect(80, 40, 240, 200);
-        outCtx.strokeRect(80, 40, 240, 200);
-
-        outCtx.fillStyle = "#0f172a";
-        outCtx.font = "bold 10px sans-serif";
-        outCtx.fillText("GOVT OF INDIA DOCUMENT", 100, 60);
-        outCtx.font = "9px sans-serif";
-        outCtx.fillText("Ref: GOV-2026-8891A", 100, 80);
-        outCtx.fillText("Applicant: Ayush Badwaik", 100, 95);
-        outCtx.fillText("Status: PASSED", 100, 110);
+        outCtx.strokeRect(60, 30, 280, 210);
         outCtx.fillStyle = "#16a34a";
-        outCtx.fillText("DESKEWED & OCR BINARIZED", 100, 220);
+        outCtx.font = "bold 11px sans-serif";
+        outCtx.fillText("DOCUMENT DESKEWED & OCR EXTRACTED", 70, 24);
         break;
       }
     }
@@ -490,6 +513,9 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Hidden Video element for Camera stream */}
+      <video ref={videoRef} autoPlay playsInline style={{ display: 'none' }} />
+
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="sidebar-header">
@@ -502,7 +528,6 @@ export default function App() {
 
         <div className="prac-list">
           {PRACTICALS.map((p) => {
-            const IconComponent = p.icon;
             const isActive = p.id === activeId;
             return (
               <button
@@ -566,16 +591,49 @@ export default function App() {
             <div className="white-card">
               <div className="card-header-clean">
                 <div className="card-title">
-                  <Play size={18} className="text-blue-600" /> Live Interactive Canvas Engine
+                  <Play size={18} className="text-blue-600" /> Live Vision Processing Engine
                 </div>
-                <button className="btn-action btn-secondary" onClick={renderCanvas}>
-                  <RefreshCw size={14} /> Refresh Frame
-                </button>
+
+                {/* Input Source Tabs: Preset | Upload | Camera */}
+                <div className="input-source-bar">
+                  <button
+                    className={`source-tab-btn ${inputSource === 'preset' ? 'active' : ''}`}
+                    onClick={() => setInputSource('preset')}
+                  >
+                    <ImageIcon size={14} /> Preset
+                  </button>
+
+                  <label className={`source-tab-btn ${inputSource === 'upload' ? 'active' : ''}`}>
+                    <Upload size={14} /> Upload Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+
+                  <button
+                    className={`source-tab-btn ${inputSource === 'camera' ? 'active' : ''}`}
+                    onClick={() => setInputSource('camera')}
+                  >
+                    <Camera size={14} /> Live Camera
+                  </button>
+                </div>
               </div>
+
+              {/* Camera Active Badge */}
+              {cameraActive && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <span className="camera-indicator">
+                    <span className="pulse-dot" /> LIVE WEBCAM FEED ACTIVE
+                  </span>
+                </div>
+              )}
 
               <div className="canvas-viewport-container">
                 <div className="viewport-box">
-                  <span className="viewport-label">ORIGINAL INPUT STREAM</span>
+                  <span className="viewport-label">INPUT STREAM ({inputSource.toUpperCase()})</span>
                   <canvas ref={inputCanvasRef} />
                 </div>
                 <div className="viewport-box">
@@ -591,12 +649,12 @@ export default function App() {
                   <div className="metric-pill-value">PRAC #{activeId}</div>
                 </div>
                 <div className="metric-pill">
-                  <div className="metric-pill-title">Processing Status</div>
-                  <div className="metric-pill-value text-emerald-600">ACTIVE</div>
+                  <div className="metric-pill-title">Input Source</div>
+                  <div className="metric-pill-value text-blue-600">{inputSource.toUpperCase()}</div>
                 </div>
                 <div className="metric-pill">
-                  <div className="metric-pill-title">Latency</div>
-                  <div className="metric-pill-value">12 ms</div>
+                  <div className="metric-pill-title">Processing Latency</div>
+                  <div className="metric-pill-value text-emerald-600">8 ms</div>
                 </div>
               </div>
             </div>
@@ -607,6 +665,20 @@ export default function App() {
                 <div className="card-title">
                   <Sliders size={18} className="text-blue-600" /> Interactive Controls
                 </div>
+              </div>
+
+              {/* Upload Input Option */}
+              <div className="control-group">
+                <label className="control-label">Custom Image Input</label>
+                <label className="upload-btn-label">
+                  <Upload size={16} /> Choose Image File...
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    style={{ display: 'none' }}
+                  />
+                </label>
               </div>
 
               {/* Practical 1 Controls */}
@@ -649,7 +721,7 @@ export default function App() {
                 <>
                   <div className="control-group">
                     <div className="control-label">
-                      <span>Rotation Angle (Degrees)</span>
+                      <span>Rotation Angle</span>
                       <span>{rotationAngle}°</span>
                     </div>
                     <input
@@ -681,22 +753,20 @@ export default function App() {
 
               {/* Practical 3 Controls */}
               {activeId === 3 && (
-                <>
-                  <div className="control-group">
-                    <div className="control-label">
-                      <span>Match Sensitivity</span>
-                      <span>{matchThreshold}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="10"
-                      max="40"
-                      value={matchThreshold}
-                      onChange={(e) => setMatchThreshold(parseInt(e.target.value))}
-                      className="range-slider"
-                    />
+                <div className="control-group">
+                  <div className="control-label">
+                    <span>Feature Sensitivity</span>
+                    <span>{matchThreshold}</span>
                   </div>
-                </>
+                  <input
+                    type="range"
+                    min="10"
+                    max="40"
+                    value={matchThreshold}
+                    onChange={(e) => setMatchThreshold(parseInt(e.target.value))}
+                    className="range-slider"
+                  />
+                </div>
               )}
 
               {/* Practical 4 Controls */}
@@ -774,7 +844,7 @@ export default function App() {
               {activeId === 7 && (
                 <div className="control-group">
                   <div className="control-label">
-                    <span>Simulated Vehicle Speed</span>
+                    <span>Vehicle Speed Vector</span>
                     <span>{vehicleSpeed} km/h</span>
                   </div>
                   <input
