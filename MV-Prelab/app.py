@@ -200,6 +200,6 @@ def webcam_snapshot():
 if __name__ == "__main__":
     print("=" * 60)
     print("  Machine Vision Pre-Lab  |  Ayush Badwaik  |  CM23051")
-    print("  Server → http://localhost:5050")
+    print("  Server -> http://localhost:5050")
     print("=" * 60)
     app.run(host="0.0.0.0", port=5050, debug=False, threaded=True)
